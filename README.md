@@ -7,6 +7,7 @@ built with Clean/Hexagonal Architecture, TypeScript, Fastify, Prisma, and Postgr
 - **Live deployment:** _add your Render URL here after deploying — see [docs/deployment.md](docs/deployment.md)_
 - **Demo video:** _add your walkthrough link here_
 - **API docs:** `GET /docs` on any running instance (Swagger UI), or [docs/api.md](docs/api.md)
+- **Final requirement-by-requirement audit:** [docs/final-audit.md](docs/final-audit.md)
 
 ## Table of contents
 
@@ -21,6 +22,7 @@ built with Clean/Hexagonal Architecture, TypeScript, Fastify, Prisma, and Postgr
 - [Future improvements](#future-improvements)
 - [Sources and references](#sources-and-references)
 - [AI usage disclosure](#ai-usage-disclosure)
+- [Final audit](docs/final-audit.md) — every assignment requirement, mapped to what's implemented
 
 ## What this is
 
