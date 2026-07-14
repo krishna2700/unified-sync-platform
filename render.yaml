@@ -1,0 +1,109 @@
+# Render Blueprint (Infrastructure as Code): https://render.com/docs/blueprint-spec
+# Deploy: connect this repo in the Render dashboard as a Blueprint, or run `render blueprint launch`.
+# Fill in every `sync: false` env var's real value in the Render dashboard after the first deploy —
+# they are intentionally not committed here (see docs/deployment.md).
+services:
+  - type: web
+    name: unified-sync-platform-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGIN
+        value: '*'
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: RATE_LIMIT_MAX
+        value: 100
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 60000
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: HUBSPOT_ACCESS_TOKEN
+        sync: false
+      - key: HUBSPOT_WEBHOOK_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        value: primary
+      - key: GOOGLE_WEBHOOK_CHANNEL_TOKEN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SYNC_CURSOR_STALE_AFTER_HOURS
+        value: 24
+      - key: SYNC_MAX_RETRY_ATTEMPTS
+        value: 5
+      - key: SYNC_RETRY_BASE_DELAY_MS
+        value: 1000
+      - key: SYNC_JOB_CONCURRENCY
+        value: 3
+      - key: SYNC_SCHEDULE_INTERVAL_MS
+        value: 900000
+
+  - type: worker
+    name: unified-sync-platform-worker
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    startCommand: npm run worker:start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: HUBSPOT_ACCESS_TOKEN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        value: primary
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: SYNC_CURSOR_STALE_AFTER_HOURS
+        value: 24
+      - key: SYNC_MAX_RETRY_ATTEMPTS
+        value: 5
+      - key: SYNC_RETRY_BASE_DELAY_MS
+        value: 1000
+      - key: SYNC_JOB_CONCURRENCY
+        value: 3
+      - key: SYNC_SCHEDULE_INTERVAL_MS
+        value: 900000

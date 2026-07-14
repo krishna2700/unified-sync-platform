@@ -63,7 +63,7 @@ exact rules and why each one exists.
 
 ## Local setup
 
-Prerequisites: Node.js 20+, a Postgres instance (local via `docker compose`, or a free
+Prerequisites: Node.js 22+, a Postgres instance (local via `docker compose`, or a free
 [Supabase](https://supabase.com) project), Redis (only needed for the background worker).
 
 ```bash
