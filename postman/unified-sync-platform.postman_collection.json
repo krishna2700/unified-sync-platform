@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "Unified Sync Platform",
+    "description": "Multi-provider sync pipeline + revenue metrics service. See docs/api.md in the repo for full reference.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminApiKey", "value": "change-me-local-dev-key" }
+  ],
+  "item": [
+    {
+      "name": "Health & Readiness",
+      "item": [
+        {
+          "name": "GET /health (liveness)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+        },
+        {
+          "name": "GET /ready (readiness — checks DB)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/ready" }
+        },
+        {
+          "name": "GET /providers/health",
+          "request": { "method": "GET", "url": "{{baseUrl}}/providers/health" }
+        },
+        {
+          "name": "GET /metrics (Prometheus)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/metrics" }
+        }
+      ]
+    },
+    {
+      "name": "Revenue Metrics",
+      "item": [
+        {
+          "name": "GET /metrics/revenue (total)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/metrics/revenue?from=2026-01-01&to=2026-02-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics", "revenue"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-02-01" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /metrics/revenue/daily",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/metrics/revenue/daily?from=2026-01-01&to=2026-02-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics", "revenue", "daily"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-02-01" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /metrics/revenue/weekly",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/metrics/revenue/weekly?from=2026-01-01&to=2026-03-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics", "revenue", "weekly"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-03-01" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /metrics/revenue/monthly",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/metrics/revenue/monthly?from=2026-01-01&to=2026-07-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics", "revenue", "monthly"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-07-01" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sync Control",
+      "item": [
+        {
+          "name": "POST /sync/trigger (all providers)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{adminApiKey}}" },
+              { "key": "Idempotency-Key", "value": "manual-trigger-{{$timestamp}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/sync/trigger"
+          }
+        },
+        {
+          "name": "POST /sync/trigger (single provider filter)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{adminApiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"stripe\",\n  \"entityType\": \"payment\"\n}"
+            },
+            "url": "{{baseUrl}}/sync/trigger"
+          }
+        },
+        {
+          "name": "POST /sync/trigger (missing API key — expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/sync/trigger"
+          }
+        },
+        {
+          "name": "GET /sync/status",
+          "request": { "method": "GET", "url": "{{baseUrl}}/sync/status" }
+        },
+        {
+          "name": "GET /sync/jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sync/jobs?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "jobs"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "GET /sync/failures",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sync/failures?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "failures"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks (signature-verified — will 400 without a valid signature)",
+      "item": [
+        {
+          "name": "POST /webhooks/stripe",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              {
+                "key": "Stripe-Signature",
+                "value": "t=...,v1=... (generate with the Stripe CLI or SDK test helper)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_example\",\n  \"type\": \"payment_intent.succeeded\",\n  \"created\": 1767225600,\n  \"data\": { \"object\": { \"id\": \"pi_example\", \"amount\": 5000, \"currency\": \"usd\", \"status\": \"succeeded\" } }\n}"
+            },
+            "url": "{{baseUrl}}/webhooks/stripe"
+          }
+        },
+        {
+          "name": "POST /webhooks/hubspot",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              {
+                "key": "X-HubSpot-Signature-v3",
+                "value": "computed HMAC-SHA256 base64 (see docs/api.md)"
+              },
+              { "key": "X-HubSpot-Request-Timestamp", "value": "{{$timestamp}}000" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[{\n  \"eventId\": 1,\n  \"subscriptionId\": 1,\n  \"subscriptionType\": \"contact.propertyChange\",\n  \"objectId\": 12345\n}]"
+            },
+            "url": "{{baseUrl}}/webhooks/hubspot"
+          }
+        },
+        {
+          "name": "POST /webhooks/google-calendar",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Goog-Channel-Token", "value": "change-me" },
+              { "key": "X-Goog-Resource-State", "value": "exists" },
+              { "key": "X-Goog-Channel-ID", "value": "example-channel" },
+              { "key": "X-Goog-Resource-ID", "value": "example-resource" },
+              { "key": "X-Goog-Message-Number", "value": "1" }
+            ],
+            "url": "{{baseUrl}}/webhooks/google-calendar"
+          }
+        }
+      ]
+    }
+  ]
+}

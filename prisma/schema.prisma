@@ -1,0 +1,323 @@
+// Prisma schema for the Unified Sync Platform.
+//
+// Design decisions (see docs/adr/0002-database-schema.md for full rationale):
+// - `provider` is TEXT + FK to a `providers` reference table, not a Postgres enum.
+//   Onboarding a new provider (e.g. a second CRM) is then a data insert, never a migration.
+// - `entity_type` is TEXT (fixed, small vocabulary — contact/deal/event/payment — since adding
+//   a new *kind* of entity always requires new code anyway, so a migration is proportionate).
+// - Money is always `*_amount_minor BIGINT` + `currency CHAR(3)`, never floating point.
+// - Every canonical table is keyed for idempotent upsert via UNIQUE(provider, source_id).
+// - CHECK constraints are not expressible in Prisma Schema Language — they are added as raw SQL
+//   appended to the generated migration (see prisma/migrations/*/migration.sql). This file is
+//   the structural source of truth; the migration is the constraint source of truth.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Reference data
+// ---------------------------------------------------------------------------
+
+model Provider {
+  id           String   @id
+  sourceSystem String   @map("source_system")
+  displayName  String   @map("display_name")
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  cursors         SyncCursor[]
+  locks           SyncLock[]
+  metadata        SyncMetadata[]
+  jobs            JobHistory[]
+  failures        FailureLog[]
+  webhookEvents   WebhookEvent[]
+  contacts        CanonicalContact[]
+  deals           CanonicalDeal[]
+  events          CanonicalEvent[]
+  payments        CanonicalPayment[]
+  statusMappings  PaymentStatusMapping[]
+  recordAuditLogs CanonicalRecordAudit[]
+
+  @@map("providers")
+}
+
+// ---------------------------------------------------------------------------
+// Canonical entities
+// ---------------------------------------------------------------------------
+
+model CanonicalContact {
+  id              String    @id @default(cuid())
+  provider        String
+  sourceId        String    @map("source_id")
+  email           String?
+  firstName       String?   @map("first_name")
+  lastName        String?   @map("last_name")
+  phone           String?
+  company         String?
+  lifecycleStage  String?   @map("lifecycle_stage")
+  sourceCreatedAt DateTime? @map("source_created_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  syncedAt        DateTime? @map("synced_at")
+  raw             Json
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@unique([provider, sourceId], name: "provider_source_id")
+  @@index([email])
+  @@index([provider, sourceUpdatedAt])
+  @@map("canonical_contacts")
+}
+
+model CanonicalDeal {
+  id                     String    @id @default(cuid())
+  provider               String
+  sourceId               String    @map("source_id")
+  dealName               String    @map("deal_name")
+  stage                  String
+  amountMinor            BigInt?   @map("amount_minor")
+  currency               String?
+  pipeline               String?
+  closeDate              DateTime? @map("close_date")
+  primaryContactSourceId String?   @map("primary_contact_source_id")
+  sourceCreatedAt        DateTime? @map("source_created_at")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime? @map("synced_at")
+  raw                    Json
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@unique([provider, sourceId], name: "provider_source_id")
+  @@index([provider, stage])
+  @@index([closeDate])
+  @@map("canonical_deals")
+}
+
+model CanonicalEvent {
+  id                     String    @id @default(cuid())
+  provider               String
+  sourceId               String    @map("source_id")
+  title                  String
+  description            String?
+  location               String?
+  startAt                DateTime  @map("start_at")
+  endAt                  DateTime  @map("end_at")
+  timezone               String?
+  status                 String
+  organizerEmail         String?   @map("organizer_email")
+  attendees              Json      @default("[]")
+  isRecurring            Boolean   @default(false) @map("is_recurring")
+  recurringEventSourceId String?   @map("recurring_event_source_id")
+  sourceCreatedAt        DateTime? @map("source_created_at")
+  sourceUpdatedAt        DateTime? @map("source_updated_at")
+  syncedAt               DateTime? @map("synced_at")
+  raw                    Json
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@unique([provider, sourceId], name: "provider_source_id")
+  @@index([provider, startAt])
+  @@index([startAt, endAt])
+  @@map("canonical_events")
+}
+
+model CanonicalPayment {
+  id              String    @id @default(cuid())
+  provider        String
+  sourceId        String    @map("source_id")
+  amountMinor     BigInt    @map("amount_minor")
+  currency        String
+  rawStatus       String    @map("raw_status")
+  canonicalStatus String    @map("canonical_status")
+  customerRef     String?   @map("customer_ref")
+  occurredAt      DateTime  @map("occurred_at")
+  description     String?
+  sourceCreatedAt DateTime? @map("source_created_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  syncedAt        DateTime? @map("synced_at")
+  raw             Json
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@unique([provider, sourceId], name: "provider_source_id")
+  @@index([canonicalStatus, occurredAt])
+  @@index([provider, occurredAt])
+  @@map("canonical_payments")
+}
+
+// ---------------------------------------------------------------------------
+// Sync engine state
+// ---------------------------------------------------------------------------
+
+model SyncCursor {
+  provider   String
+  entityType String    @map("entity_type")
+  token      String
+  issuedAt   DateTime  @map("issued_at")
+  expiresAt  DateTime? @map("expires_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@id([provider, entityType])
+  @@map("sync_cursors")
+}
+
+// Lease-based lock, not a Postgres advisory lock: pg_advisory_lock is session-scoped, which is
+// unsafe to acquire/release across two different calls borrowed from a connection pool (Prisma's
+// default mode). A row + expiring lease, acquired via INSERT ... ON CONFLICT DO UPDATE ... WHERE
+// (an atomic compare-and-swap), works correctly regardless of which pooled connection runs each
+// call, and a crashed holder's lease simply expires instead of deadlocking future runs forever.
+model SyncLock {
+  provider   String
+  entityType String   @map("entity_type")
+  lockedAt   DateTime @map("locked_at")
+  lockOwner  String?  @map("lock_owner")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@id([provider, entityType])
+  @@map("sync_locks")
+}
+
+model SyncMetadata {
+  provider                String
+  entityType              String    @map("entity_type")
+  lastSyncStatus          String    @map("last_sync_status")
+  lastSyncMode            String    @map("last_sync_mode")
+  lastSyncStartedAt       DateTime? @map("last_sync_started_at")
+  lastSyncCompletedAt     DateTime? @map("last_sync_completed_at")
+  lastSuccessfulSyncAt    DateTime? @map("last_successful_sync_at")
+  consecutiveFailureCount Int       @default(0) @map("consecutive_failure_count")
+  recordsProcessedLastRun Int       @default(0) @map("records_processed_last_run")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@id([provider, entityType])
+  @@map("sync_metadata")
+}
+
+model JobHistory {
+  id              String    @id
+  provider        String
+  entityType      String    @map("entity_type")
+  mode            String
+  outcome         String?
+  startedAt       DateTime  @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  recordsFetched  Int       @default(0) @map("records_fetched")
+  recordsUpserted Int       @default(0) @map("records_upserted")
+  recordsFailed   Int       @default(0) @map("records_failed")
+  errorSummary    String?   @map("error_summary")
+
+  providerRef Provider     @relation(fields: [provider], references: [id])
+  failures    FailureLog[]
+
+  @@index([provider, entityType, startedAt(sort: Desc)])
+  @@index([outcome])
+  @@map("job_history")
+}
+
+model FailureLog {
+  id         String   @id @default(cuid())
+  provider   String
+  entityType String?  @map("entity_type")
+  jobId      String?  @map("job_id")
+  errorCode  String   @map("error_code")
+  message    String
+  context    Json     @default("{}")
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  providerRef Provider    @relation(fields: [provider], references: [id])
+  job         JobHistory? @relation(fields: [jobId], references: [id])
+
+  @@index([provider, occurredAt(sort: Desc)])
+  @@index([errorCode])
+  @@map("failure_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Webhook ingestion & idempotency
+// ---------------------------------------------------------------------------
+
+model WebhookEvent {
+  id               String    @id @default(cuid())
+  idempotencyKey   String    @unique @map("idempotency_key")
+  provider         String
+  eventType        String    @map("event_type")
+  payload          Json
+  receivedAt       DateTime  @default(now()) @map("received_at")
+  processingStatus String    @default("received") @map("processing_status")
+  processedAt      DateTime? @map("processed_at")
+  error            String?
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@index([provider, receivedAt(sort: Desc)])
+  @@map("webhook_events")
+}
+
+model IdempotencyKey {
+  key         String
+  scope       String
+  status      String    @default("claimed")
+  result      Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@id([key, scope])
+  @@map("idempotency_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Revenue engine configuration
+// ---------------------------------------------------------------------------
+
+model PaymentStatusMapping {
+  provider        String
+  rawStatus       String   @map("raw_status")
+  canonicalStatus String   @map("canonical_status")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@id([provider, rawStatus])
+  @@map("payment_status_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+
+model CanonicalRecordAudit {
+  id         String   @id @default(cuid())
+  entityType String   @map("entity_type")
+  provider   String
+  sourceId   String   @map("source_id")
+  internalId String   @map("internal_id")
+  operation  String
+  jobId      String?  @map("job_id")
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  snapshot   Json
+
+  providerRef Provider @relation(fields: [provider], references: [id])
+
+  @@index([entityType, sourceId])
+  @@index([occurredAt])
+  @@map("canonical_record_audit")
+}
