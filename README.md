@@ -5,7 +5,6 @@ with one canonical, structurally-enforced business definition of "collected reve
 built with Clean/Hexagonal Architecture, TypeScript, Fastify, Prisma, and Postgres.
 
 - **Live deployment:** https://unified-sync-platform-api.onrender.com ([`/health`](https://unified-sync-platform-api.onrender.com/health) · [`/docs`](https://unified-sync-platform-api.onrender.com/docs) · [`/metrics/revenue`](https://unified-sync-platform-api.onrender.com/metrics/revenue))
-- **Demo video:** _add your walkthrough link here_
 - **API docs:** `GET /docs` on any running instance (Swagger UI), or [docs/api.md](docs/api.md)
 - **Final requirement-by-requirement audit:** [docs/final-audit.md](docs/final-audit.md)
 
