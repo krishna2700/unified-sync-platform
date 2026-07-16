@@ -27,7 +27,10 @@ Two services from the same repo:
 
 ### Web service (API)
 
-- **Build command**: `npm ci && npm run prisma:generate && npm run build`
+- **Build command**: `npm ci --include=dev && npm run prisma:generate && npm run build`
+  (`--include=dev` matters: Render sets `NODE_ENV=production` for the build step too, which makes
+  plain `npm ci` skip devDependencies — including `typescript`, `prisma`, and `husky`, all needed
+  to build. Caught by an actual failed deploy; see the Dockerfile, which already did this correctly.)
 - **Start command**: `npm start`
 - **Health check path**: `/health`
 - **Environment**: copy every variable from `.env.example`, using your real Supabase/provider
