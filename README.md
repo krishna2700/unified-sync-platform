@@ -12,6 +12,7 @@ built with Clean/Hexagonal Architecture, TypeScript, Fastify, Prisma, and Postgr
 ## Table of contents
 
 - [What this is](#what-this-is)
+- [Try it live](#try-it-live)
 - [Architecture](#architecture)
 - [Local setup](#local-setup)
 - [Provider setup (HubSpot / Google Calendar / Stripe)](#provider-setup)
@@ -37,6 +38,42 @@ Two problem statements, one codebase:
    canonical payment statuses (never an exclusion list), exposed through four endpoints that all
    share the exact same calculation code — enforced by an automated architecture test, not just a
    comment (see [ADR 0007](docs/adr/0007-revenue-single-source-of-truth-enforcement.md)).
+
+## Try it live
+
+No local setup needed — these all hit the real deployment on Render, backed by a real Supabase
+Postgres database:
+
+```bash
+# Liveness — always 200 once the process is up
+curl https://unified-sync-platform-api.onrender.com/health
+
+# Readiness — runs a real SELECT 1 against Supabase
+curl https://unified-sync-platform-api.onrender.com/ready
+
+# Revenue metrics — same RevenueCalculator.calculate() backs all four granularities
+curl https://unified-sync-platform-api.onrender.com/metrics/revenue
+curl "https://unified-sync-platform-api.onrender.com/metrics/revenue/daily?from=2026-01-01&to=2026-07-01"
+
+# Health of every registered provider adapter (empty until provider credentials are added)
+curl https://unified-sync-platform-api.onrender.com/providers/health
+
+# Sync state (empty until a sync has run)
+curl https://unified-sync-platform-api.onrender.com/sync/status
+
+# Prometheus metrics
+curl https://unified-sync-platform-api.onrender.com/metrics
+```
+
+Or just open **https://unified-sync-platform-api.onrender.com/docs** in a browser — a full
+interactive Swagger UI where you can execute every endpoint by hand, no `curl` needed.
+
+Free-tier note: Render's free web services spin down after inactivity, so the very first request
+after a while can take 30-60s to respond (cold start) — that's expected, not a bug.
+
+Root path (`GET /`) intentionally 404s with a structured error — the API has no landing page,
+only the specific endpoints above. That 404 response itself (JSON body + `correlationId`) is the
+error-handling behavior working as designed.
 
 ## Architecture
 
