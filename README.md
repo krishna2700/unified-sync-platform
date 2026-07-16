@@ -4,7 +4,7 @@ A multi-provider synchronization pipeline (CRM, Payments, Calendar) and a revenu
 with one canonical, structurally-enforced business definition of "collected revenue" —
 built with Clean/Hexagonal Architecture, TypeScript, Fastify, Prisma, and Postgres.
 
-- **Live deployment:** _add your Render URL here after deploying — see [docs/deployment.md](docs/deployment.md)_
+- **Live deployment:** https://unified-sync-platform-api.onrender.com ([`/health`](https://unified-sync-platform-api.onrender.com/health) · [`/docs`](https://unified-sync-platform-api.onrender.com/docs) · [`/metrics/revenue`](https://unified-sync-platform-api.onrender.com/metrics/revenue))
 - **Demo video:** _add your walkthrough link here_
 - **API docs:** `GET /docs` on any running instance (Swagger UI), or [docs/api.md](docs/api.md)
 - **Final requirement-by-requirement audit:** [docs/final-audit.md](docs/final-audit.md)
